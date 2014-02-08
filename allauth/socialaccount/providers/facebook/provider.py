@@ -1,9 +1,10 @@
-import json
+import json, requests, urlparse, datetime
 
 from django.core.urlresolvers import reverse
 from django.core.exceptions import ImproperlyConfigured
 from django.template.loader import render_to_string
 from django.template import RequestContext
+from django.utils import timezone
 from django.utils.html import mark_safe
 
 from allauth.utils import import_callable
@@ -78,6 +79,29 @@ class FacebookProvider(OAuth2Provider):
         if QUERY_EMAIL:
             scope.append('email')
         return scope
+
+    @staticmethod
+    def exchange_shortterm_token(token):
+        '''
+        Given a short-lived access token, goes out to Facebook
+        and makes the exchange for a long-lived token
+
+        Modifies the token in place and returns
+
+        Arguments:
+        token  {socialaccount.models.SocialToken}
+        '''
+        resp = requests.get('https://graph.facebook.com/oauth/access_token?' +
+            'grant_type=fb_exchange_token' +
+            '&client_id=%s' % token.app.client_id +
+            '&client_secret=%s' % token.app.secret +
+            '&fb_exchange_token=%s' % token.token
+        )
+        if resp.status_code == 200:
+            long_lived_access_token = urlparse.parse_qs(resp.content)
+            token.token = long_lived_access_token['access_token'][0]
+            token.expires_at = timezone.now() + datetime.timedelta(seconds=int(long_lived_access_token['expires'][0]))
+        return token
 
     def get_auth_params(self, request, action):
         ret = super(FacebookProvider, self).get_auth_params(request,

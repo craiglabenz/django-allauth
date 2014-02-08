@@ -62,6 +62,7 @@ def login_by_token(request):
                 token = SocialToken(app=app,
                                     token=access_token,
                                     expires_at=expires_at)
+                token = FacebookProvider.exchange_shortterm_token(token)
                 login = fb_complete_login(request, app, token)
                 login.token = token
                 login.state = SocialLogin.state_from_request(request)
