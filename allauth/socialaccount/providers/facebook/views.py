@@ -1,8 +1,8 @@
-import logging
-import requests
+import logging, requests, datetime
 
 from django.utils.cache import patch_response_headers
 from django.shortcuts import render
+from django.utils import timezone
 
 
 from allauth.socialaccount.models import (SocialLogin,
@@ -50,14 +50,18 @@ oauth2_callback = OAuth2CallbackView.adapter_view(FacebookOAuth2Adapter)
 def login_by_token(request):
     ret = None
     if request.method == 'POST':
-        form = FacebookConnectForm(request.POST)
+        post_body = request.POST.copy()
+        post_body['expires_at'] = timezone.now() + datetime.timedelta(seconds=int(post_body['expires_in']))
+        form = FacebookConnectForm(post_body)
         if form.is_valid():
             try:
                 app = providers.registry.by_id(FacebookProvider.id) \
                     .get_app(request)
                 access_token = form.cleaned_data['access_token']
+                expires_at = form.cleaned_data['expires_at']
                 token = SocialToken(app=app,
-                                    token=access_token)
+                                    token=access_token,
+                                    expires_at=expires_at)
                 login = fb_complete_login(request, app, token)
                 login.token = token
                 login.state = SocialLogin.state_from_request(request)
